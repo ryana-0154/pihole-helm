@@ -1,0 +1,33 @@
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "pihole.fullname" . }}-etc
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.pihole.size }}
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "pihole.fullname" . }}-dnsmasq
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.dnsmasq.size }}
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

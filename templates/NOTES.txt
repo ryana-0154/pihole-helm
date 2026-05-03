@@ -1,0 +1,18 @@
+Pi-hole has been deployed.
+
+1. DNS service:
+   kubectl get svc -n {{ .Release.Namespace }} {{ include "pihole.fullname" . }}-dns
+
+2. Web UI (port-forward example):
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "pihole.fullname" . }}-web 8080:{{ .Values.serviceWeb.port }}
+   Then open: http://localhost:8080/admin/
+
+{{- if not .Values.adminPassword }}
+{{- if not .Values.existingSecret }}
+
+3. No admin password was set. Pi-hole will generate one — fetch it with:
+   kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "pihole.fullname" . }} | grep "Web Interface password"
+{{- end }}
+{{- end }}
+
+4. Point your clients' DNS at the {{ include "pihole.fullname" . }}-dns service IP.

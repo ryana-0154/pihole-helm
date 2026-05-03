@@ -1,0 +1,15 @@
+apiVersion: v2
+name: pihole
+description: A Helm chart for running Pi-hole on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "2024.07.0"
+home: https://pi-hole.net/
+sources:
+  - https://github.com/pi-hole/docker-pi-hole
+keywords:
+  - pihole
+  - dns
+  - adblock
+maintainers:
+  - name: ryan
