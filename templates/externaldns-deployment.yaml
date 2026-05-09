@@ -1,5 +1,5 @@
 {{- if .Values.externalDns.enabled }}
-{{- $piholeServer := .Values.externalDns.piholeServer | default (printf "http://%s:%v" (include "pihole.fullname" .) .Values.serviceWeb.port) -}}
+{{- $piholeServer := .Values.externalDns.piholeServer | default (printf "http://%s-web:%v" (include "pihole.fullname" .) .Values.serviceWeb.port) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
