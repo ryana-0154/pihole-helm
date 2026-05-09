@@ -31,7 +31,7 @@ spec:
             - /bin/sh
             - -c
             - |
-              url="{{ $piholeServer }}/api/auth"
+              url="{{ $piholeServer }}/admin/"
               echo "waiting for $url ..."
               i=0
               until wget -q -O /dev/null --tries=1 --timeout=3 "$url"; do
