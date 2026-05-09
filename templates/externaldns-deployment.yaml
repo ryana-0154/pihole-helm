@@ -22,6 +22,27 @@ spec:
         app.kubernetes.io/component: external-dns
     spec:
       serviceAccountName: {{ include "pihole.fullname" . }}-external-dns
+      initContainers:
+        # Block until Pi-hole's web/API is reachable so the webhook doesn't
+        # crashloop trying to authenticate before FTL is up.
+        - name: wait-for-pihole
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - |
+              url="{{ $piholeServer }}/api/auth"
+              echo "waiting for $url ..."
+              i=0
+              until wget -q -O /dev/null --tries=1 --timeout=3 "$url"; do
+                i=$((i+1))
+                if [ $i -ge 60 ]; then
+                  echo "timed out waiting for pihole" >&2
+                  exit 1
+                fi
+                sleep 5
+              done
+              echo "pihole reachable"
       containers:
         - name: external-dns
           image: "{{ .Values.externalDns.image.repository }}:{{ .Values.externalDns.image.tag }}"
