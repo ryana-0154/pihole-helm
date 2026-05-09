@@ -103,7 +103,7 @@ spec:
             initialDelaySeconds: 15
           readinessProbe:
             httpGet:
-              path: /readyz
+              path: /healthz
               port: webhook
             initialDelaySeconds: 10
           resources:
