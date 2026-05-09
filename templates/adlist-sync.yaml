@@ -3,13 +3,11 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  # Plain resource (not a Helm hook) so Argo doesn't delete it between syncs;
+  # the Job below depends on it surviving for post-install/post-upgrade.
   name: {{ include "pihole.fullname" . }}-adlists
   labels:
     {{- include "pihole.labels" . | nindent 4 }}
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-weight": "0"
-    "helm.sh/hook-delete-policy": before-hook-creation
 data:
   desired.json: |
     {{- toJson (dict "block" .Values.adlists.block "allow" .Values.adlists.allow) | nindent 4 }}
