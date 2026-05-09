@@ -62,6 +62,9 @@ spec:
             - --domain-filter={{ . }}
             {{- end }}
             {{- with .Values.externalDns.regexDomainExclusion }}
+            # exclusion only takes effect when a positive filter is also
+            # set, so pair it with a match-all .*
+            - --regex-domain-filter=.*
             - --regex-domain-exclusion={{ . }}
             {{- end }}
           ports:
