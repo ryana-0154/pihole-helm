@@ -100,42 +100,49 @@ data:
     echo "done."
 ---
 apiVersion: batch/v1
-kind: Job
+kind: CronJob
 metadata:
   name: {{ include "pihole.fullname" . }}-adlist-sync
   labels:
     {{- include "pihole.labels" . | nindent 4 }}
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "10"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
-  # The script handles its own retries; outer retries just burn API seats.
-  backoffLimit: 0
-  ttlSecondsAfterFinished: 600
-  template:
-    metadata:
-      labels:
-        {{- include "pihole.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: adlist-sync
+  # Suspended by default — trigger manually via Argo UI ("Create Job from
+  # CronJob") or `kubectl create job --from=cronjob/<name> <name>-manual`.
+  # Set adlists.schedule to a cron expression and adlists.suspend=false to
+  # have it run automatically.
+  suspend: {{ .Values.adlists.suspend }}
+  schedule: {{ .Values.adlists.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
     spec:
-      restartPolicy: OnFailure
-      containers:
-        - name: sync
-          image: "{{ .Values.adlists.image.repository }}:{{ .Values.adlists.image.tag }}"
-          imagePullPolicy: {{ .Values.adlists.image.pullPolicy }}
-          command: ["/bin/sh", "/config/sync.sh"]
-          env:
-            - name: PIHOLE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "pihole.secretName" . }}
-                  key: password
-          volumeMounts:
+      # The script handles its own retries; outer retries just burn API seats.
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            {{- include "pihole.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: adlist-sync
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: "{{ .Values.adlists.image.repository }}:{{ .Values.adlists.image.tag }}"
+              imagePullPolicy: {{ .Values.adlists.image.pullPolicy }}
+              command: ["/bin/sh", "/config/sync.sh"]
+              env:
+                - name: PIHOLE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "pihole.secretName" . }}
+                      key: password
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+          volumes:
             - name: config
-              mountPath: /config
-      volumes:
-        - name: config
-          configMap:
-            name: {{ include "pihole.fullname" . }}-adlists
+              configMap:
+                name: {{ include "pihole.fullname" . }}-adlists
 {{- end }}

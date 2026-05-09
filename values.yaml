@@ -47,6 +47,11 @@ dnsmasqExtraConfig:
 # entries not declared here are removed.
 adlists:
   enabled: true
+  # CronJob suspended by default — trigger via Argo UI ("Create Job from
+  # CronJob") or `kubectl create job --from=cronjob/<release>-adlist-sync ...`.
+  # Set suspend=false + a real schedule to run on a timer.
+  suspend: true
+  schedule: "0 4 * * *"
   # If true, also delete adlists from Pi-hole that aren't declared here.
   prune: false
   # Trigger a gravity rebuild after the sync if any change was made.
