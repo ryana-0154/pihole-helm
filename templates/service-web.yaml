@@ -12,6 +12,7 @@ spec:
   type: {{ .Values.serviceWeb.type }}
   selector:
     {{- include "pihole.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pihole
   ports:
     - name: http
       port: {{ .Values.serviceWeb.port }}

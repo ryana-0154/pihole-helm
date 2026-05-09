@@ -15,6 +15,9 @@ spec:
     metadata:
       labels:
         {{- include "pihole.selectorLabels" . | nindent 8 }}
+        # Distinguishes the pihole pod from sidecar deployments that share
+        # selectorLabels (e.g. external-dns), so the Services match only this pod.
+        app.kubernetes.io/component: pihole
       annotations:
         # Roll the pod when raw dnsmasq snippets change.
         checksum/dnsmasq-extra: {{ toYaml .Values.dnsmasqExtraConfig | sha256sum }}
