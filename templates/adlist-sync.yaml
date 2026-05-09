@@ -71,8 +71,9 @@ data:
         [ -z "$url" ] && continue
         comment=$(jq -r --arg k "$key" --arg u "$url" '.[$k][] | select(.url==$u) | .comment // ""' "$DESIRED")
         echo "  + $typ: $url"
-        api -X POST "$SERVER/api/lists" \
-          -d "$(jq -nc --arg a "$url" --arg t "$typ" --arg c "$comment" '{address:$a, type:$t, comment:$c}')" \
+        # Pi-hole v6 requires `type` as a query param; body must NOT include it.
+        api -X POST "$SERVER/api/lists?type=$typ" \
+          -d "$(jq -nc --arg a "$url" --arg c "$comment" '{address:$a, comment:$c}')" \
           >/dev/null
         changed=1
       done
