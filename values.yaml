@@ -8,7 +8,7 @@ image:
 adminPassword: ""
 
 # Existing secret with key `password` to use instead of `adminPassword`.
-existingSecret: ""
+existingSecret: "pihole-admin"
 
 # Matches the BST timestamp on the teleporter export.
 timezone: Europe/London
