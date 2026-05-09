@@ -29,6 +29,9 @@ extraEnv:
   # from Gateway API resources and would clash with a static seed list.
   # NTP: ipv4 server off, ipv6 server on, sync on (export deltas).
   FTLCONF_ntp_ipv4_active: "false"
+  # Larger session pool: external-dns webhook + adlist-sync Job + occasional
+  # human use can blow past the default 16 quickly.
+  FTLCONF_webserver_api_max_sessions: "64"
 
 # Raw dnsmasq.d snippets from the teleporter (not expressible via FTLCONF_*).
 # Rendered into a ConfigMap and subPath-mounted next to Pi-hole's own files.
