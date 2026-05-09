@@ -1,0 +1,3 @@
+# Raw teleporter exports — keep local, push only the SealedSecret form.
+pi-hole_*_teleporter_*.zip
+*.tgz

@@ -1,0 +1,13 @@
+{{- if .Values.dnsmasqExtraConfig }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pihole.fullname" . }}-dnsmasq-extra
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+data:
+{{- range $name, $content := .Values.dnsmasqExtraConfig }}
+  {{ $name }}: |
+{{ $content | indent 4 }}
+{{- end }}
+{{- end }}

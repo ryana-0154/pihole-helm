@@ -15,6 +15,9 @@ spec:
     metadata:
       labels:
         {{- include "pihole.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Roll the pod when raw dnsmasq snippets change.
+        checksum/dnsmasq-extra: {{ toYaml .Values.dnsmasqExtraConfig | sha256sum }}
     spec:
       {{- if .Values.hostNetwork }}
       hostNetwork: true
@@ -54,6 +57,28 @@ spec:
             - name: {{ $k }}
               value: {{ $v | quote }}
             {{- end }}
+          {{- if and .Values.teleporter.enabled .Values.persistence.enabled }}
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    marker=/etc/pihole/.teleporter-imported
+                    src=/teleporter/{{ .Values.teleporter.secretKey }}
+                    [ -f "$marker" ] && exit 0
+                    [ -f "$src" ] || exit 0
+                    # Wait for FTL to come up, then import. Idempotent via marker.
+                    for i in $(seq 1 30); do
+                      if pihole-FTL --teleporter import "$src" >/tmp/teleporter-import.log 2>&1; then
+                        touch "$marker"
+                        exit 0
+                      fi
+                      sleep 2
+                    done
+                    echo "teleporter import failed; see /tmp/teleporter-import.log" >&2
+          {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
@@ -72,22 +97,42 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.persistence.enabled }}
           volumeMounts:
+            {{- if .Values.persistence.enabled }}
             - name: etc-pihole
               mountPath: /etc/pihole
             - name: etc-dnsmasq
               mountPath: /etc/dnsmasq.d
-          {{- end }}
-      {{- if .Values.persistence.enabled }}
+            {{- end }}
+            {{- range $name, $_ := .Values.dnsmasqExtraConfig }}
+            - name: dnsmasq-extra
+              mountPath: /etc/dnsmasq.d/{{ $name }}
+              subPath: {{ $name }}
+            {{- end }}
+            {{- if .Values.teleporter.enabled }}
+            - name: teleporter
+              mountPath: /teleporter
+              readOnly: true
+            {{- end }}
       volumes:
+        {{- if .Values.persistence.enabled }}
         - name: etc-pihole
           persistentVolumeClaim:
             claimName: {{ include "pihole.fullname" . }}-etc
         - name: etc-dnsmasq
           persistentVolumeClaim:
             claimName: {{ include "pihole.fullname" . }}-dnsmasq
-      {{- end }}
+        {{- end }}
+        {{- if .Values.dnsmasqExtraConfig }}
+        - name: dnsmasq-extra
+          configMap:
+            name: {{ include "pihole.fullname" . }}-dnsmasq-extra
+        {{- end }}
+        {{- if .Values.teleporter.enabled }}
+        - name: teleporter
+          secret:
+            secretName: {{ .Values.teleporter.existingSecret }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

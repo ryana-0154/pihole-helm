@@ -1,21 +1,51 @@
 image:
   repository: pihole/pihole
-  tag: "2024.07.0"
+  tag: "2026.04.1"
   pullPolicy: IfNotPresent
 
 # Admin web UI password. Leave empty to have Pi-hole generate one (check pod logs).
-# Recommended: set via --set or a sealed secret.
+# For real deploys, point existingSecret at a SealedSecret instead.
 adminPassword: ""
 
 # Existing secret with key `password` to use instead of `adminPassword`.
 existingSecret: ""
 
-timezone: UTC
+# Matches the BST timestamp on the teleporter export.
+timezone: Europe/London
 
-# Extra env vars passed to the container (FTLCONF_*, PIHOLE_DNS_, etc.)
-extraEnv: {}
-  # FTLCONF_dns_upstreams: "1.1.1.1;9.9.9.9"
-  # PIHOLE_DNS_: "1.1.1.1;1.0.0.1"
+# Env vars passed to the container. These mirror the non-default settings from
+# the teleporter export (pihole.toml) so a fresh PVC still comes up correctly
+# even if the teleporter import is skipped.
+extraEnv:
+  # Forward to local Unbound (matches upstreams = ["127.0.0.1#5335"]).
+  FTLCONF_dns_upstreams: "127.0.0.1#5335"
+  # listeningMode = "BIND"
+  FTLCONF_dns_listeningMode: "BIND"
+  # bogusPriv = true (FTL default, pinned for clarity)
+  FTLCONF_dns_bogusPriv: "true"
+  # domainNeeded = false (override of FTL default true)
+  FTLCONF_dns_domainNeeded: "false"
+  # NOTE: dns.hosts are NOT pinned here — external-dns manages local A records
+  # from Gateway API resources and would clash with a static seed list.
+  # NTP: ipv4 server off, ipv6 server on, sync on (export deltas).
+  FTLCONF_ntp_ipv4_active: "false"
+
+# Raw dnsmasq.d snippets from the teleporter (not expressible via FTLCONF_*).
+# Rendered into a ConfigMap and subPath-mounted next to Pi-hole's own files.
+dnsmasqExtraConfig:
+  05-custom.conf: |
+    rebind-domain-ok=/ra-home.co.uk/
+  99-edns.conf: |
+    edns-packet-max=1232
+
+# Teleporter restore: a sealed secret holds the .zip; the pod imports it on
+# first start (idempotent via a marker file in the PVC).
+teleporter:
+  enabled: true
+  # Name of the (Sealed)Secret in the release namespace.
+  existingSecret: pihole-teleporter
+  # Key inside that secret holding the zip bytes.
+  secretKey: teleporter.zip
 
 persistence:
   enabled: true
@@ -84,3 +114,40 @@ probes:
     periodSeconds: 10
 
 replicaCount: 1
+
+# external-dns + Pi-hole webhook sidecar. Watches Gateway API resources and
+# syncs their hostnames into Pi-hole's local DNS as A records pointing at the
+# parent Gateway's LB IP. Removes the need to hand-maintain FTLCONF_dns_hosts.
+externalDns:
+  enabled: true
+  image:
+    repository: registry.k8s.io/external-dns/external-dns
+    tag: v0.15.0
+    pullPolicy: IfNotPresent
+  webhook:
+    image:
+      repository: ghcr.io/gabe565/external-dns-pihole-webhook
+      tag: v0.6.0
+      pullPolicy: IfNotPresent
+  # Gateway API sources to watch. Drop entries you don't use to cut RBAC noise.
+  sources:
+    - gateway-httproute
+    - gateway-grpcroute
+    - gateway-tlsroute
+    - gateway-tcproute
+    - gateway-udproute
+  # Restrict to specific zones; empty = manage all hostnames external-dns sees.
+  # e.g. ["homelab.lan", "ra-home.co.uk"]
+  domainFilters: []
+  # sync = create + delete; upsert-only = never delete records.
+  policy: sync
+  registry: txt
+  txtOwnerId: pihole
+  interval: 1m
+  logLevel: info
+  resources: {}
+  # Pi-hole API endpoint the webhook talks to. Defaults to the in-cluster web
+  # service for this release.
+  piholeApiUrl: ""
+  # Skip TLS verify on the webhook → Pi-hole call (Pi-hole's web UI is HTTP here).
+  piholeSkipTlsVerify: true
