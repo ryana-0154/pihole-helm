@@ -173,6 +173,10 @@ externalDns:
   # Restrict to specific zones; empty = manage all hostnames external-dns sees.
   # e.g. ["homelab.lan", "ra-home.co.uk"]
   domainFilters: []
+  # Regex of hostnames to exclude. Default skips wildcard names — Pi-hole's
+  # dns.hosts table doesn't accept "*.example" entries, and one bad record
+  # makes external-dns abort the whole reconcile batch.
+  regexDomainExclusion: '^\*\.'
   # sync = create + delete; upsert-only = never delete records.
   policy: sync
   registry: txt
