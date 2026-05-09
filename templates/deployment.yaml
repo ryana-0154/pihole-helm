@@ -82,7 +82,7 @@ spec:
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
-              path: /admin/
+              path: /admin/login
               port: http
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
@@ -90,7 +90,7 @@ spec:
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
-              path: /admin/
+              path: /admin/login
               port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
