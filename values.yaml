@@ -38,6 +38,32 @@ dnsmasqExtraConfig:
   99-edns.conf: |
     edns-packet-max=1232
 
+# Declarative adlists. A Helm post-install/upgrade Job reconciles these into
+# Pi-hole via the v6 API. Co-exists cleanly with the teleporter import: missing
+# entries are added, existing ones are left alone, and (only with `prune: true`)
+# entries not declared here are removed.
+adlists:
+  enabled: true
+  # If true, also delete adlists from Pi-hole that aren't declared here.
+  prune: false
+  # Trigger a gravity rebuild after the sync if any change was made.
+  rebuildGravityOnChange: true
+  # Image used for the sync Job (needs sh + apk for curl/jq install).
+  image:
+    repository: alpine
+    tag: "3.19"
+    pullPolicy: IfNotPresent
+  # Block lists. Each entry: url (required), comment (optional).
+  block:
+    - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt
+      comment: Hagezi Multi PRO - Extended protection
+    - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt
+      comment: Hagezi Threat Intel
+    - url: https://big.oisd.nl
+      comment: OISD Big
+  # Allow lists (rare).
+  allow: []
+
 # Teleporter restore: a sealed secret holds the .zip; the pod imports it on
 # first start (idempotent via a marker file in the PVC).
 teleporter:

@@ -1,0 +1,123 @@
+{{- if .Values.adlists.enabled }}
+{{- $piholeServer := printf "http://%s-web:%v" (include "pihole.fullname" .) .Values.serviceWeb.port -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pihole.fullname" . }}-adlists
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  desired.json: |
+    {{- toJson (dict "block" .Values.adlists.block "allow" .Values.adlists.allow) | nindent 4 }}
+  sync.sh: |
+    #!/bin/sh
+    set -eu
+    apk add --no-cache curl jq >/dev/null
+
+    SERVER="{{ $piholeServer }}"
+    DESIRED=/config/desired.json
+    PRUNE="{{ .Values.adlists.prune }}"
+    REBUILD="{{ .Values.adlists.rebuildGravityOnChange }}"
+
+    echo "waiting for $SERVER ..."
+    i=0
+    until curl -sSf -o /dev/null "$SERVER/admin/login"; do
+      i=$((i+1))
+      [ $i -ge 60 ] && { echo "timed out waiting for pihole" >&2; exit 1; }
+      sleep 5
+    done
+
+    echo "authenticating ..."
+    SID=$(curl -sSf -X POST "$SERVER/api/auth" \
+      -H 'content-type: application/json' \
+      -d "$(jq -nc --arg p "$PIHOLE_PASSWORD" '{password:$p}')" \
+      | jq -r '.session.sid // empty')
+    [ -n "$SID" ] || { echo "auth failed" >&2; exit 1; }
+
+    api() { curl -sSf -H "X-FTL-SID: $SID" -H 'content-type: application/json' "$@"; }
+
+    changed=0
+
+    # Reconcile one type ("block" or "allow"). Idempotent.
+    reconcile() {
+      typ="$1"; key="$2"
+      existing=$(api "$SERVER/api/lists?type=$typ" | jq -r '.lists[].address' | sort -u)
+      desired=$(jq -r --arg k "$key" '.[$k][].url' "$DESIRED" | sort -u)
+
+      # Add missing.
+      for url in $(echo "$desired" | grep -vxF -f <(echo "$existing") || true); do
+        [ -z "$url" ] && continue
+        comment=$(jq -r --arg k "$key" --arg u "$url" '.[$k][] | select(.url==$u) | .comment // ""' "$DESIRED")
+        echo "  + $typ: $url"
+        api -X POST "$SERVER/api/lists" \
+          -d "$(jq -nc --arg a "$url" --arg t "$typ" --arg c "$comment" '{address:$a, type:$t, comment:$c}')" \
+          >/dev/null
+        changed=1
+      done
+
+      # Prune extras.
+      if [ "$PRUNE" = "true" ]; then
+        for url in $(echo "$existing" | grep -vxF -f <(echo "$desired") || true); do
+          [ -z "$url" ] && continue
+          enc=$(printf '%s' "$url" | jq -sRr @uri)
+          echo "  - $typ: $url"
+          api -X DELETE "$SERVER/api/lists/$enc?type=$typ" >/dev/null
+          changed=1
+        done
+      fi
+    }
+
+    reconcile block block
+    reconcile allow allow
+
+    if [ "$changed" = "1" ] && [ "$REBUILD" = "true" ]; then
+      echo "rebuilding gravity ..."
+      api -X POST "$SERVER/api/action/gravity" >/dev/null || \
+        echo "WARN: gravity rebuild request failed (non-fatal)" >&2
+    fi
+
+    echo "done."
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "pihole.fullname" . }}-adlist-sync
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        {{- include "pihole.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: adlist-sync
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: sync
+          image: "{{ .Values.adlists.image.repository }}:{{ .Values.adlists.image.tag }}"
+          imagePullPolicy: {{ .Values.adlists.image.pullPolicy }}
+          command: ["/bin/sh", "/config/sync.sh"]
+          env:
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pihole.secretName" . }}
+                  key: password
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pihole.fullname" . }}-adlists
+{{- end }}
