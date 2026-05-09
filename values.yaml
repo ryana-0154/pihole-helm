@@ -126,8 +126,8 @@ externalDns:
     pullPolicy: IfNotPresent
   webhook:
     image:
-      repository: ghcr.io/gabe565/external-dns-pihole-webhook
-      tag: v0.6.0
+      repository: ghcr.io/tarantini-io/external-dns-pihole-webhook
+      tag: v1.0.0
       pullPolicy: IfNotPresent
   # Gateway API sources to watch. Drop entries you don't use to cut RBAC noise.
   sources:
@@ -148,6 +148,6 @@ externalDns:
   resources: {}
   # Pi-hole API endpoint the webhook talks to. Defaults to the in-cluster web
   # service for this release.
-  piholeApiUrl: ""
-  # Skip TLS verify on the webhook → Pi-hole call (Pi-hole's web UI is HTTP here).
-  piholeSkipTlsVerify: true
+  piholeServer: ""
+  # Allow insecure TLS to Pi-hole (the in-cluster web UI is plain HTTP here).
+  piholeTlsInsecure: true

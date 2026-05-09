@@ -1,5 +1,5 @@
 {{- if .Values.externalDns.enabled }}
-{{- $apiUrl := .Values.externalDns.piholeApiUrl | default (printf "http://%s:%v" (include "pihole.fullname" .) .Values.serviceWeb.port) -}}
+{{- $piholeServer := .Values.externalDns.piholeServer | default (printf "http://%s:%v" (include "pihole.fullname" .) .Values.serviceWeb.port) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -59,15 +59,19 @@ spec:
           image: "{{ .Values.externalDns.webhook.image.repository }}:{{ .Values.externalDns.webhook.image.tag }}"
           imagePullPolicy: {{ .Values.externalDns.webhook.image.pullPolicy }}
           env:
-            - name: PIHOLE_API_URL
-              value: {{ $apiUrl | quote }}
-            - name: PIHOLE_API_PASSWORD
+            - name: SERVER_HOST
+              value: "0.0.0.0"
+            - name: PIHOLE_SERVER
+              value: {{ $piholeServer | quote }}
+            - name: PIHOLE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "pihole.secretName" . }}
                   key: password
-            - name: PIHOLE_SKIP_TLS_VERIFY
-              value: {{ .Values.externalDns.piholeSkipTlsVerify | quote }}
+            - name: PIHOLE_TLS_INSECURE
+              value: {{ .Values.externalDns.piholeTlsInsecure | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.externalDns.logLevel | quote }}
           ports:
             - name: webhook
               containerPort: 8888
@@ -76,6 +80,11 @@ spec:
               path: /healthz
               port: webhook
             initialDelaySeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: webhook
+            initialDelaySeconds: 10
           resources:
             {{- toYaml .Values.externalDns.resources | nindent 12 }}
 {{- end }}
